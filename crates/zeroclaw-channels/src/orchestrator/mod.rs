@@ -444,10 +444,27 @@ fn interruption_scope_key(msg: &zeroclaw_api::channel::ChannelMessage) -> String
     }
 }
 
+/// Strip leading reply-context lines (`> …`) and the blank separator that
+/// channels like Telegram prepend when the user sends a message as a reply.
+/// Returns the bare user text that follows the quoted block.
+fn strip_reply_context(content: &str) -> &str {
+    let trimmed = content.trim();
+    if !trimmed.starts_with('>') {
+        return trimmed;
+    }
+    if let Some(pos) = trimmed.find("\n\n") {
+        let after = trimmed[pos + 2..].trim();
+        if !after.is_empty() {
+            return after;
+        }
+    }
+    trimmed
+}
+
 /// Returns `true` when `content` is a `/stop` command (with optional `@botname` suffix).
 /// Not gated on channel type — all non-CLI channels support `/stop`.
 fn is_stop_command(content: &str) -> bool {
-    let trimmed = content.trim();
+    let trimmed = strip_reply_context(content);
     if !trimmed.starts_with('/') {
         return false;
     }
@@ -746,7 +763,7 @@ fn supports_runtime_model_switch(channel_name: &str) -> bool {
 }
 
 fn parse_runtime_command(channel_name: &str, content: &str) -> Option<ChannelRuntimeCommand> {
-    let trimmed = content.trim();
+    let trimmed = strip_reply_context(content);
     if !trimmed.starts_with('/') {
         return None;
     }
@@ -11635,6 +11652,69 @@ This is an example JSON object for profile settings."#;
     fn is_stop_command_rejects_stop_as_substring() {
         assert!(!is_stop_command("/stopwatch"));
         assert!(!is_stop_command("/stop-all"));
+    }
+
+    // ── strip_reply_context tests ──────────────────────────────────────
+
+    #[test]
+    fn strip_reply_context_returns_bare_text_unchanged() {
+        assert_eq!(strip_reply_context("/new"), "/new");
+        assert_eq!(strip_reply_context("  /stop  "), "/stop");
+        assert_eq!(strip_reply_context("hello world"), "hello world");
+    }
+
+    #[test]
+    fn strip_reply_context_strips_single_line_quote() {
+        assert_eq!(
+            strip_reply_context("> @alice:\n> Hello world\n\n/new"),
+            "/new"
+        );
+    }
+
+    #[test]
+    fn strip_reply_context_strips_multiline_quote() {
+        let content = "> @bot:\n> line one\n> line two\n> line three\n\n/stop";
+        assert_eq!(strip_reply_context(content), "/stop");
+    }
+
+    #[test]
+    fn strip_reply_context_preserves_full_command_with_args() {
+        let content = "> @user:\n> some context\n\n/model gpt-4o";
+        assert_eq!(strip_reply_context(content), "/model gpt-4o");
+    }
+
+    #[test]
+    fn strip_reply_context_returns_original_when_no_separator() {
+        assert_eq!(strip_reply_context("> just a quote"), "> just a quote");
+    }
+
+    #[test]
+    fn strip_reply_context_returns_original_when_nothing_after_separator() {
+        assert_eq!(strip_reply_context("> quote\n\n"), "> quote");
+    }
+
+    // ── commands with reply context ─────────────────────────────────────
+
+    #[test]
+    fn is_stop_command_recognizes_stop_with_reply_context() {
+        assert!(is_stop_command("> @bot:\n> previous msg\n\n/stop"));
+    }
+
+    #[test]
+    fn is_stop_command_recognizes_stop_bot_suffix_with_reply_context() {
+        assert!(is_stop_command("> @user:\n> text\n\n/stop@mybot"));
+    }
+
+    #[test]
+    fn parse_runtime_command_new_session_with_reply_context() {
+        let cmd = parse_runtime_command("telegram", "> @bot:\n> old msg\n\n/new");
+        assert!(matches!(cmd, Some(ChannelRuntimeCommand::NewSession)));
+    }
+
+    #[test]
+    fn parse_runtime_command_model_with_reply_context() {
+        let cmd = parse_runtime_command("telegram", "> @bot:\n> old msg\n\n/model gpt-4o");
+        assert!(matches!(cmd, Some(ChannelRuntimeCommand::SetModel(m)) if m == "gpt-4o"));
     }
 
     #[test]
