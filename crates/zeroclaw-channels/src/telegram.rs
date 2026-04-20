@@ -1199,6 +1199,7 @@ Allowlist Telegram username (without '@') or numeric user ID.",
             thread_ts: thread_id,
             interruption_scope_id: None,
             attachments: vec![],
+            raw_content: None,
         })
     }
 
@@ -1330,6 +1331,7 @@ Allowlist Telegram username (without '@') or numeric user ID.",
             thread_ts: thread_id,
             interruption_scope_id: None,
             attachments: vec![],
+            raw_content: None,
         })
     }
 
@@ -1504,6 +1506,8 @@ Allowlist Telegram username (without '@') or numeric user ID.",
             text.to_string()
         };
 
+        let raw_content = content.clone();
+
         let content = if let Some(quote) = self.extract_reply_context(message) {
             format!("{quote}\n\n{content}")
         } else {
@@ -1515,6 +1519,12 @@ Allowlist Telegram username (without '@') or numeric user ID.",
             format!("{attr}{content}")
         } else {
             content
+        };
+
+        let raw_content = if raw_content != content {
+            Some(raw_content)
+        } else {
+            None
         };
 
         // Exit voice-chat mode when user switches back to typing
@@ -1535,6 +1545,7 @@ Allowlist Telegram username (without '@') or numeric user ID.",
             thread_ts: thread_id,
             interruption_scope_id: None,
             attachments: vec![],
+            raw_content,
         })
     }
 
