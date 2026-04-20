@@ -47,6 +47,8 @@ pub struct ChannelMessage {
     /// Channels populate this when they receive media alongside a text message.
     /// Defaults to empty — existing channels are unaffected.
     pub attachments: Vec<MediaAttachment>,
+    /// User text before channel enrichment (reply quotes, forward attribution).
+    pub raw_content: Option<String>,
 }
 
 /// Message to send through a channel
