@@ -251,6 +251,7 @@ impl NextcloudTalkChannel {
             thread_ts: None,
             interruption_scope_id: None,
             attachments: vec![],
+                raw_content: None,
         });
 
         messages
@@ -364,6 +365,7 @@ impl NextcloudTalkChannel {
             thread_ts: None,
             interruption_scope_id: None,
             attachments: vec![],
+                raw_content: None,
         });
 
         messages
